@@ -7,7 +7,8 @@
 //
 // Keys (KEYS below; `?` shows them all): j/k (arrows, wheel, click) move
 // the cursor; v or a drag selects; a writes a note on the selection (enter
-// saves, esc cancels); enter opens nvim at the cursor (on a fold: unfolds);
+// saves, esc cancels); enter reviews a scratch diff in nvim (on a fold:
+// unfolds); e explicitly edits the real file;
 // s/u/x stage, unstage, discard the file; J/K next/previous file of the
 // list; m Diff or Preview (markdown, images, SVGs: preview.js); p sends the
 // notes; esc clears. Commands: `gitview-diff.key:<key>`, `gitview-diff.note:<text>`,
@@ -24,7 +25,7 @@ import { addNote, answerIn, ask, cursorIn, liveView, notesKey, notesOf, previewO
 import { diffPane } from "./layout.js";
 import { Flash, Loads, commandLoop, debounced, keyEvent, keyName, takeKeyboard } from "./modkit.js";
 import { panePlacement } from "./placement.js";
-import { editorLabel, knowEditor, openNvim } from "./nvim.js";
+import { knowEditor, openNvim } from "./nvim.js";
 import { Scroller } from "./scroller.js";
 import { unzoom } from "./zoom.js";
 import { diffHeader, footer } from "./chrome.js";
@@ -57,7 +58,8 @@ const KEYS = [
   { caps: ["m"], label: "diff / preview", rank: 4, when: (v) => Boolean(previewKind(v.view)), on: { m: (v, cx) => v.togglePreview(cx) } },
   { caps: ["v"], label: "select", rank: 5, when: diffShown, on: { v: inDiff((v) => { v.anchor = v.anchor === null ? v.cursor : null; }) } },
   { caps: ["a"], label: "note", rank: 6, when: diffShown, on: { a: inDiff((v) => v.annotate()) } },
-  { caps: ["enter"], label: (v) => editorLabel(v.view?.root, v.view?.on), rank: 3, on: { enter: (v, cx) => v.enterKey(cx), e: (v, cx) => v.edit(null, cx) } },
+  { caps: ["enter"], label: "review in nvim", rank: 3, on: { enter: (v, cx) => v.enterKey(cx) } },
+  { caps: ["e"], label: "edit real file", on: { e: (v, cx) => v.edit(null, cx) } },
   { caps: ["J", "K"], label: "next / previous file", rank: 7, on: { J: (v, cx) => v.nextFile(1, cx), K: (v, cx) => v.nextFile(-1, cx) } },
   { caps: ["x"], label: "discard", rank: 8, on: { x: (v, cx) => v.act("discard", cx) } },
   { caps: ["p"], label: "send notes", rank: 9, on: { p: (v, cx) => v.send(cx) } },
@@ -413,12 +415,10 @@ export default class GitDiff extends View {
     return Math.max(1, Math.floor((this.scroll.height || 360) / diffs.ROW) - 2);
   }
 
-  // enter: on a fold unfolds it; else nvim (from Preview: at line 1, or
-  // where the cursor was moved to in Diff).
+  // Enter reviews a snapshot. Only the explicitly labelled e edits a real file.
   enterKey(cx) {
-    if (this.inPreview()) return this.edit(this.cursorMoved ? null : 1, cx);
     if (this.diff.rows[this.cursor]?.k === "fold") return this.unfoldAll(cx);
-    this.edit(null, cx);
+    run(`gitview.review-open:${this.tab()}`);
   }
 
   edit(line = null, cx = null) {
@@ -563,7 +563,7 @@ export default class GitDiff extends View {
     this.cursorMoved = true;
     if (e.click_count >= 2) {
       this.anchor = null;
-      return this.edit(null, cx);
+      return this.enterKey(cx);
     }
     if (!e.modifiers?.shift) this.anchor = index;
     else if (this.anchor === null) this.anchor = index;
@@ -705,7 +705,7 @@ export default class GitDiff extends View {
           .flex_col()
           .relative()
           .font_family(settings().font_family ?? "JetBrains Mono")
-          .text_size(12)
+          .text_size(11)
           .child(this.scroll.view(t, (i) => diffs.renderRow(display[i], ctx)))
           .child(diffs.columnProbe((col, cx) => this.setColumn(col, cx)))
           .when(Boolean(this.diff.error || this.diff.empty || this.diff.binary), (e) =>
@@ -720,7 +720,7 @@ export default class GitDiff extends View {
       .min_h(0)
       .bg(t.background)
       .text_color(t.foreground)
-      .text_size(13)
+      .text_size(11)
       .track_focus(this.handle)
       .on_mouse_down("left", (_e, cx) => { this.focusHere(cx); cx.notify(); })
       .on_mouse_up("left", (_e, cx) => this.up(cx))

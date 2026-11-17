@@ -45,7 +45,7 @@ export function renderRow(row, ctx) {
       .items_center()
       .on_hover((h, cx) => ctx.onHover(row, h, cx))
       .child(div().flex_1().min_w(0).truncate().text_size(11).font_semibold().text_color(t.muted).child(row.section.title.toUpperCase()))
-      .child(div().flex_none().px(5).rounded(8).bg(t.raised).text_size(10.5).text_color(t.muted).child(String(row.section.files.length)))
+      .child(div().flex_none().px(5).bg(t.raised).text_size(10.5).text_color(t.muted).child(String(row.section.files.length)))
       .when(hot && tools, (e) => e.child(actions(t, row, " all", ctx)));
   }
   const base = h_flex()
@@ -57,7 +57,7 @@ export function renderRow(row, ctx) {
     .pr(tools ? 3 : 8)
     .gap(8)
     .items_center()
-    .rounded(7)
+    .rounded(0)
     .cursor_pointer()
     .when(on, (e) => e.bg(ctx.focused ? t.selected : t.hover))
     .when(!on, (e) => e.hover((s) => s.bg(t.hover)))
@@ -76,7 +76,7 @@ export function renderRow(row, ctx) {
     .when(ctx.tree, (e) => e.child(div().w(12).flex_none()))
     .child(letter(t, f.letter))
     .child(pathLabel(t, f.path, { folder: !ctx.tree }))
-    .when(Boolean(ctx.inNvim?.(row)), (e) => e.child(div().flex_none().px(5).rounded(5).border_1().border_color(t.border).text_size(10).text_color(t.muted).child("in nvim")))
+    .when(Boolean(ctx.inNvim?.(row)), (e) => e.child(div().flex_none().px(5).border_1().border_color(t.border).text_size(10).text_color(t.muted).child("in nvim")))
     .when(!tools, (e) => e.children(lineCounts(t, f.add, f.del)))
     .when(tools, (e) => e.child(actions(t, row, "", ctx)));
 }

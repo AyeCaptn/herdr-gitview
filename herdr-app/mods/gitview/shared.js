@@ -237,6 +237,11 @@ export function removeNotes(key, ids) {
   setNotes(key, notesOf(key).filter((n) => !ids.includes(n.id)));
 }
 
+export function upsertNote(key, note) {
+  const list = notesOf(key);
+  setNotes(key, list.some((n) => n.id === note.id) ? list.map((n) => n.id === note.id ? note : n) : [...list, note]);
+}
+
 // ---- cmd-g's tabs -----------------------------------------------------------
 
 // One of cmd-g's gitview tabs.

@@ -47,5 +47,5 @@ export function toggleKeys(title, groups, v) {
   }
   const card = cardOf(groups, v);
   const rows = card.reduce((n, g) => n + 1 + g.keys.length, 0);
-  openOverlay({ mod: "gitview-keys", kind: "dialog", width: 500, height: Math.min(640, 96 + rows * 24 + card.length * 12), props: { title, groups: card } });
+  openOverlay({ mod: "gitview-keys", kind: "dialog", frame: "none", width: 500, height: Math.min(640, 96 + rows * 24 + card.length * 12), props: { title, groups: card } });
 }

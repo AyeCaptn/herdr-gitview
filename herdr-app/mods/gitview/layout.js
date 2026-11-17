@@ -2,18 +2,20 @@
 // shown layout (no shared state of gitview's). Shared by the mods (linked;
 // install copies it).
 
-import { focused, layout, panes, spaces, terminals } from "herdr";
+import { focused, layout, panes, shared, spaces, terminals } from "herdr";
 import { isOwnTab, machineOf } from "./shared.js";
 
 // The tab's diff pane, if it has one.
 export function diffPane(tab) {
-  return panes().find((p) => p.tab === tab && p.mod === "gitview-diff") ?? null;
+  const terminal = shared("gitview.reviewSessions")?.[tab]?.terminal;
+  return panes().find((p) => p.tab === tab && (p.mod === "gitview-diff" || terminal && p.terminal === terminal)) ?? null;
 }
 
 // The diff panes the Changes panel opened, in every tab (not the ones in
 // cmd-g's gitview tabs, which belong to their own list).
 export function panelDiffPanes() {
-  return panes().filter((p) => p.mod === "gitview-diff" && !isOwnTab(p.tab));
+  const reviews = new Set(Object.values(shared("gitview.reviewSessions") ?? {}).map((s) => s.terminal));
+  return panes().filter((p) => (p.mod === "gitview-diff" || p.terminal && reviews.has(p.terminal)) && !isOwnTab(p.tab));
 }
 
 // The panes herdr-nvim shows in the tab: its nvim's (a terminal labelled
@@ -73,7 +75,7 @@ export function location(keep) {
   const on = f?.pane === null ? machineOf(f?.terminal) : space?.machine ?? null;
   // A mod pane, herdr-nvim's nvim, or nothing in the tab (a dialog over
   // it): the place stays.
-  const nvim = pane?.terminal && herdrNvimPanes(f.tab).some((p) => p.pane === pane.pane);
+  const nvim = pane?.terminal && (herdrNvimPanes(f.tab).some((p) => p.pane === pane.pane) || diffPane(f.tab)?.terminal === pane.terminal);
   if (keep && keep.tab === f?.tab && ((pane && !pane.terminal) || nvim || (!f?.pane && !f?.terminal))) return keep;
   return {
     cwd: pane?.cwd || f?.cwd || space?.folder || null,

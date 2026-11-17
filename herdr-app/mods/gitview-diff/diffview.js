@@ -233,7 +233,7 @@ function noteCard(note, ctx) {
     .font_family(ctx.uiFont)
     .child(
       v_flex()
-        .rounded(8)
+        .rounded(0)
         .border_1()
         .border_color(t.accent)
         .bg(t.raised)
@@ -264,7 +264,7 @@ function composer(ctx) {
     .font_family(ctx.uiFont)
     .child(
       v_flex()
-        .rounded(8)
+        .rounded(0)
         .border_1()
         .border_color(t.accent)
         .bg(t.surface)

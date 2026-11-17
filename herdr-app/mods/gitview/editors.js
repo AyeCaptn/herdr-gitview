@@ -124,6 +124,7 @@ function askToClose(rec, cancel, after = []) {
   const quit = (how) => [{ exec: [rec.bin, quitArgv(rec, how)] }, ...after];
   openOverlay({
     mod: "gitview-ask",
+    frame: "none",
     kind: "dialog",
     modal: true,
     width: 440,

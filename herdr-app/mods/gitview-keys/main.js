@@ -51,13 +51,14 @@ export default class GitviewKeys extends View {
       .p(16)
       .gap(10)
       .bg(t.popover)
-      .text_size(13)
+      .border_1().border_color(t.input).shadow_lg()
+      .text_size(11)
       .text_color(t.foreground)
       .child(
         h_flex()
           .items_center()
           .gap(8)
-          .child(div().flex_1().min_w(0).truncate().text_size(15).font_semibold().child(p.title ?? "Keys"))
+          .child(div().flex_1().min_w(0).truncate().text_size(11).font_semibold().child(p.title ?? "Keys"))
           .child(keycap(t, "escape"))
           .child(keycap(t, "?")),
       )

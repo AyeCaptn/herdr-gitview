@@ -25,7 +25,7 @@ const PANEL = {
   opensDiffPane: true,
   closesForHerdrNvim: true,
   takesKeyboard: false,
-  frame: (e, t, focused) => e.rounded(10).overflow_hidden().border_1().border_color(focused ? t.accent : t.border),
+  frame: (e, t, focused) => e.overflow_hidden().border_1().border_color(focused ? t.accent : t.border),
   cycle: () => new PanelCycle(),
   // The keyboard and the app's focus together, the one way the app has for
   // a layout block: `pane.go right` from the pane beside it (the tab's diff

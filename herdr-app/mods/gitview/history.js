@@ -100,7 +100,7 @@ export function commitRow(c, i, ctx) {
     .px(10)
     .justify_center()
     .gap(2)
-    .rounded(7)
+    .rounded(0)
     .cursor_pointer()
     .when(on, (e) => e.bg(ctx.focused ? t.selected : t.hover))
     .when(!on, (e) => e.hover((s) => s.bg(t.hover)))
@@ -111,7 +111,7 @@ export function commitRow(c, i, ctx) {
         .items_center()
         .min_w(0)
         .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(c.subject || "(no message)"))
-        .children(refs.slice(0, 2).map((r) => div().flex_none().max_w(110).truncate().px(5).rounded(5).bg(t.raised).text_size(10.5).text_color(t.accent).child(r))),
+        .children(refs.slice(0, 2).map((r) => div().flex_none().max_w(110).truncate().px(5).bg(t.raised).text_size(10.5).text_color(t.accent).child(r))),
     )
     .child(
       h_flex()

@@ -19,7 +19,7 @@ export default class GitviewPanel extends View {
       // A question of gitview's is open (a discard's confirm, the editor's
       // unsaved changes): it answers first, as v1's modal took every key.
       const open = (await appCli(["status"]))?.overlays ?? [];
-      if (open.includes("confirm") || open.includes("gitview-ask")) return;
+      if (open.includes("confirm") || open.includes("terminal-confirm") || open.includes("gitview-ask")) return;
       const p = panelState();
       if (!p) return notify({ title: "gitview", body: "This layout has no gitview Changes panel (run gitview's install.sh).", level: "warning" });
       if (p.shown) {

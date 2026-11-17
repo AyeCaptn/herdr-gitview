@@ -2,8 +2,9 @@
 // Changes panel (the layout's `changes` slot; it follows the shown space),
 // and is the right half of cmd-g's gitview tab (props {cwd, on, space, tab,
 // own}); placement.js holds what differs. Clicking a file (or j/k onto it)
-// shows its diff in the tab's diff pane (mod gitview-diff), full height
-// left of the panel, opened on first use; Enter opens nvim. The two talk
+// shows its read-only unified diff in the tab's Neovim pane, full height
+// left of the panel, opened on first use; Enter focuses the diff, while e
+// explicitly edits the source file. The two talk
 // only through shared state (shared.js).
 //
 // Views (modes.js): the changed files (flat or as a tree, `t`), the history
@@ -32,6 +33,7 @@ import { unzoom } from "./zoom.js";
 import { footer } from "./chrome.js";
 import { chipsFor, handleKey, runCommand, showKeys } from "./keys.js";
 import { MODES } from "./modes.js";
+import { Reviews } from "./review.js";
 
 // exec gives up on a program after 30 s: a commit that took that long may
 // still be running (a slow hook) or have finished.
@@ -72,6 +74,7 @@ export default class GitList extends View {
     this.noSubmodules = new Set(); // repos (keys) whose status needs --ignore-submodules
     this.flash = new Flash(cx);
     this.loads = new Loads((m) => this.flash.set(m));
+    this.reviews = new Reviews(this);
     // A lost op (app bug #1) never gets to its finally or its refresh: no
     // commit stays running, its own batches aren't skipped, and the repo
     // is shown as it is.
@@ -90,6 +93,7 @@ export default class GitList extends View {
     // drawn, but its timers run.
     this.kick = debounced(cx, 0, (cx) => this.notice(cx));
     cx.timer.every(300, (cx) => {
+      this.reviews.look(cx);
       const r = this.reviveAt;
       if (r && Date.now() >= r.due) {
         this.reviveAt = null;
@@ -112,7 +116,7 @@ export default class GitList extends View {
     });
     cx.timer.every(10000, (cx) => { if (!this.ctx?.on && this.place.shown() && Date.now() - (this.statusAt ?? 0) > 30000) this.refresh(cx, { poll: true, why: "poll" }); });
     commandLoop(cx, { tr: this.tr, loads: this.loads, flash: this.flash, name: "gitview", before: (cx) => this.notice(cx), handle: (c, cx) => runCommand(this, c, cx) });
-    if (this.place.takesKeyboard) this.focusList(cx);
+    if (this.place.takesKeyboard && focused()?.tab === this.tab()) this.focusList(cx);
   }
 
   // The keyboard and the app's focus, together (placement.js focusSelf).
@@ -635,7 +639,7 @@ export default class GitList extends View {
     const was = liveView(viewIn(tab));
     const same = was && sameShown(was, next) && !line && !focusPane;
     if (!same) this.writeView(tab, next);
-    if (open && cx && this.place.opensDiffPane) this.ensurePane(tab, cx, { focusPane });
+    if (open && cx) this.ensurePane(tab, cx, { focusPane });
   }
 
   // The one writer of the pane's view (S1), traced: the pane's follow is
@@ -648,14 +652,15 @@ export default class GitList extends View {
   // The tab's diff pane, opened on first use: full height at the tab's
   // right edge (`json sidebar`), left of this panel.
   ensurePane(tab, cx, { focusPane = false } = {}) {
+    if (diffPane(tab)) return this.reviews.request(tab, cx, focusPane);
     // `opening`: a split on its way (bounded: a dropped exec never ends it).
-    if (diffPane(tab) || (this.opening?.tab === tab && Date.now() - this.opening.at < 15000)) return;
+    if (this.opening?.tab === tab && Date.now() - this.opening.at < 15000) return;
     this.opening = { tab, at: Date.now() };
     cx.spawn(async (cx) => {
       try {
         const { pane } = await gv(["sidebar", "--tab", tab, "--mod", "gitview-diff", "--props", JSON.stringify({ tab })]);
-        if (focusPane && pane) run("pane.focus", { pane }); // the pane takes the keys (its view says so)
-        else this.focusList(cx); // the new pane took the app's focus; the list keeps it
+        this.reviews.request(tab, cx, focusPane);
+        if (!focusPane && focused()?.tab === tab) this.focusList(cx);
       } catch (e) {
         this.flash.set(message(e));
       } finally {
@@ -737,8 +742,20 @@ export default class GitList extends View {
     else if (row) this.edit(row, cx);
   }
 
-  // nvim at the cursor the diff pane has on this file, else its first change.
+  // Enter reviews the diff; e is the explicit path to the real source file.
   edit(row, cx) {
+    const tab = this.tab();
+    if (!tab) return;
+    this.select(row, cx);
+    this.ensurePane(tab, cx, { focusPane: true });
+  }
+
+  async close() {
+    await this.reviews.close();
+  }
+
+  // nvim at the cursor the diff pane has on this file, else its first change.
+  editSource(row, cx) {
     if (this.handedOff(row)) return this.bringBack(row, cx);
     if (row.file.kind === "deleted") return this.flash.set(`${row.file.path} is deleted`);
     const tab = this.tab();
@@ -995,7 +1012,7 @@ export default class GitList extends View {
     const mode = MODES[this.mode];
     this.tr.drew(() => this.traceFields());
     return this.place
-      .frame(v_flex().id("gitview").size_full().min_h(0).bg(t.background).text_color(t.foreground).text_size(13), t, focused)
+      .frame(v_flex().id("gitview").size_full().min_h(0).bg(t.background).text_color(t.foreground).text_size(11), t, focused)
       .track_focus(this.handle)
       .on_mouse_down("left", (_e, cx) => { this.focusHere(cx); cx.notify(); })
       .on_size_change((size, cx) => {

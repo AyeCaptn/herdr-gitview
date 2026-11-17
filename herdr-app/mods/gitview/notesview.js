@@ -47,7 +47,7 @@ export function noteRow(n, i, ctx) {
     .pr(4)
     .gap(6)
     .items_center()
-    .rounded(7)
+    .rounded(0)
     .cursor_pointer()
     .when(on, (e) => e.bg(ctx.focused ? t.selected : t.hover))
     .when(!on, (e) => e.hover((s) => s.bg(t.hover)))

@@ -33,7 +33,8 @@ export function confirmDiscard(mod, what, payload) {
   setShared("gitview.discards", { ...all, [token]: { mod, at: now, payload } });
   tracer().line("state", { discardAsk: token, what: String(what).slice(0, 200) });
   openOverlay({
-    mod: "confirm",
+    mod: "terminal-confirm",
+    frame: "none",
     kind: "dialog",
     modal: true,
     width: 420,
@@ -64,6 +65,6 @@ export async function sendNotes(key, space) {
   const plain = notes.map(({ id, section, ...note }) => ({ ...note, cached: Boolean(note.cached) }));
   const { message } = await gv(["notes", "--", JSON.stringify(plain)]);
   const height = Math.min(420, 140 + 32 * Math.max(1, agents().length));
-  openOverlay({ mod: "gitview-agents", kind: "dialog", modal: true, width: 460, height, props: { message, count: notes.length, space, key, ids: notes.map((n) => n.id) } });
+  openOverlay({ mod: "gitview-agents", kind: "dialog", frame: "none", modal: true, width: 460, height, props: { message, count: notes.length, space, key, ids: notes.map((n) => n.id) } });
   return true;
 }

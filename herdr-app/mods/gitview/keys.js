@@ -56,6 +56,8 @@ export function runCommand(view, command, cx) {
   } else if (command === "focus:panel") {
     if (view.cycle) view.focusList(cx);
   } else if (what === "discard") view.discardConfirmed(command, cx);
+  else if (what === "review-event") view.loads.run(cx, "review-event", async (cx) => view.reviews.receive(arg, cx), { quiet: true });
+  else if (what === "review-open" && arg === view.tab()) view.ensurePane(arg, cx, { focusPane: true });
   else if (what === "key") view.key(keyEvent(arg), cx);
   else if (what === "file") view.selectPath(arg, cx);
   else if (what === "commit") {
