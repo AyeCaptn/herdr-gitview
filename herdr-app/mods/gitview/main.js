@@ -14,12 +14,12 @@
 
 import { View } from "gpui-kit";
 import { v_flex, TextareaState } from "gpui-base";
-import { focused, notify, panes, props, shared, theme } from "herdr";
+import { focused, notify, panes, props, setShared, shared, theme } from "herdr";
 import { Tracer, event, run } from "./telemetry.js";
-import { endTerminal, gv, labelled, message, onArgs } from "./engine.js";
+import { appCli, endTerminal, gv, labelled, message, onArgs } from "./engine.js";
 import { diffArgs, isDark, sameFile, sameShown } from "./model.js";
 import { allowed, confirmDiscard, sendNotes, takeDiscard } from "./actions.js";
-import { answer, askIn, cursorIn, handoffIn, setIgnoredDirs, handoffs, liveView, notesKey, notesOf, setHandoff, setTreeMode, setView, treeMode, viewIn } from "./shared.js";
+import { answer, askIn, cursorIn, handoffIn, setIgnoredDirs, handoffs, liveView, notesKey, notesOf, ownTab, setHandoff, setOrigin, setOwnTab, setTreeMode, setView, treeMode, viewIn } from "./shared.js";
 import { diffPane, panelDiffPanes, panelState, herdrNvimPanes } from "./layout.js";
 import { Flash, Loads, commandLoop, debounced, followStamp, stampMoved, watch } from "./modkit.js";
 import { listPlacement } from "./placement.js";
@@ -34,6 +34,7 @@ import { footer } from "./chrome.js";
 import { chipsFor, handleKey, runCommand, showKeys } from "./keys.js";
 import { MODES } from "./modes.js";
 import { Reviews } from "./review.js";
+import { promoteReview } from "./promote.js";
 
 // exec gives up on a program after 30 s: a commit that took that long may
 // still be running (a slow hook) or have finished.
@@ -43,7 +44,8 @@ export default class GitList extends View {
   init(_props, cx) {
     this.tr = new Tracer("list", () => ({ tab: this.tab(), space: this.ctx?.space }), () => this.traceState());
     this.tr.start(cx);
-    this.place = listPlacement(props()); // props(): read here only (placement.js)
+    const p = props();
+    this.place = listPlacement(p); // props(): read here only (placement.js)
     this.cycle = this.place.cycle(); // the panel's show/hide (placement.js)
     this.handle = cx.focus_handle();
     this.scroll = new Scroller("gitview-list");
@@ -63,7 +65,7 @@ export default class GitList extends View {
     this.commitInput.on("blur", (_e, cx) => { this.typing = false; cx.notify(); });
     this.width = 0; // layout px
     this.mode = "files";
-    this.scope = "worktree";
+    this.scope = p?.scope ?? "worktree";
     this.work = null; // FileList: the changed files
     this.commitFiles = null; // FileList: a commit's files (history)
     this.history = new History(false);
@@ -93,6 +95,7 @@ export default class GitList extends View {
     // drawn, but its timers run.
     this.kick = debounced(cx, 0, (cx) => this.notice(cx));
     cx.timer.every(300, (cx) => {
+      this.publishFocus();
       this.reviews.look(cx);
       const r = this.reviveAt;
       if (r && Date.now() >= r.due) {
@@ -137,8 +140,18 @@ export default class GitList extends View {
   // focus came with them (else the app's ring is on another pane).
   showsFocus() {
     const has = this.handle.is_focused() || this.typing;
+    this.publishFocus();
     if (!has) this.viaApp = false;
     return has && Boolean(this.viaApp);
+  }
+
+  publishFocus() {
+    const tab = this.tab();
+    if (!tab) return;
+    const has = this.handle.is_focused() || Boolean(this.typing);
+    const current = shared("gitview.listFocus");
+    if (has && (current?.tab !== tab || !current.focused)) setShared("gitview.listFocus", { tab, focused: true });
+    else if (!has && current?.tab === tab && current.focused) setShared("gitview.listFocus", { tab, focused: false });
   }
 
   // The tab whose diff pane this list drives.
@@ -152,6 +165,41 @@ export default class GitList extends View {
   }
 
   // ---- data ---------------------------------------------------------------
+
+  openInTab(cx) {
+    if (!this.cycle || this.movingReview) return;
+    const sourceTab = this.tab();
+    const space = this.ctx?.space;
+    const view = liveView(viewIn(sourceTab));
+    if (!view) return this.flash.set("Select a file first");
+    if (ownTab(space)) return this.flash.set("A review tab already exists; close it before moving this review");
+    this.movingReview = true;
+    cx.spawn(async cx => {
+      try {
+        if (!await this.reviews.ready(sourceTab)) throw new Error("Wait for the review to load and finish the current comment before moving it");
+        const cursor = cursorIn(sourceTab);
+        await promoteReview({ space, sourceTab, view: { ...view, line: cursor?.line ?? view.line }, scope: this.scope }, {
+          command: async (name, args) => {
+            const result = await appCli(["do", name, JSON.stringify(args)]);
+            if (!result || result.error) throw new Error(result?.error ?? `${name} failed`);
+            return result;
+          },
+          prepare: (tab, selected) => { setOwnTab(space, tab); setOrigin(space, sourceTab); setView(tab, selected); },
+          sidebar: gv,
+          waitReady: tab => this.reviews.waitReady(tab, cx),
+          closeSource: async () => {
+            this.cycle.aside = false;
+            this.cycle.shown = false;
+            await this.reviews.closeTab(sourceTab);
+            run("layout.hide", { id: panelState().panel });
+          },
+          cancel: async tab => { setOwnTab(space, null); await this.reviews.closeTab(tab); },
+        });
+      } catch (error) {
+        notify({ title: "Cannot move review to a tab", body: message(error), level: "error" });
+      } finally { this.movingReview = false; cx.notify(); }
+    });
+  }
 
   // Keyed by the repo, not the folder: two terminals in one repo's
   // folders (or /tmp and /private/tmp) are the same list. A folder not seen
@@ -181,7 +229,7 @@ export default class GitList extends View {
       wasTab: this.ctx?.tab,
       ask: shown ? askIn(tab)?.seq ?? 0 : 0,
       askSeen: this.seen.asks[tab] ?? 0,
-    });
+    }) ?? (shown && (ctx?.terminal !== this.ctx?.terminal || ctx?.sourceToken !== this.ctx?.sourceToken) ? "source" : null);
     // Each new reason once in the trace (render asks this often).
     if (why !== this.lastWhy) {
       this.lastWhy = why;
@@ -201,7 +249,7 @@ export default class GitList extends View {
     const tabChanged = ctx.tab !== this.ctx?.tab;
     const stamped = Boolean(followStamp(this.watcher)); // another list's watch saw the repo change
     if (ctx.key !== this.ctx?.key || stamped) this.refresh(cx, { quiet: ctx.key === this.ctx?.key, why: ctx.key !== this.ctx?.key ? `place ${ctx.key}` : "stamp" });
-    else if (tabChanged) this.ctx = { ...this.ctx, tab: ctx.tab, space: ctx.space };
+    else this.ctx = { ...this.ctx, ...ctx };
     // Another tab: its pane's file, and whether that changed meanwhile (its
     // view is rewritten when its rev moved: the pane reloads it).
     if (tabChanged) {

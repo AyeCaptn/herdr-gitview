@@ -7,7 +7,7 @@
 // Everything that differs between the two is here, so the mods never ask
 // "am I the panel?". Shared (linked; install copies it).
 
-import { focused, panes, spaces } from "herdr";
+import { focused, panes, shared, spaces } from "herdr";
 import { run } from "./telemetry.js";
 import { isOwnTab, ownTab } from "./shared.js";
 import { diffPane, location, onScreen, panelState } from "./layout.js";
@@ -35,7 +35,10 @@ const PANEL = {
   // left the ring on the diff pane: two panes looked focused.
   focusSelf: (list, cx) => {
     const dp = diffPane(list.tab());
-    if (dp) run("pane.focus", { pane: dp.pane });
+    const terminal = shared("gitview.reviewSessions")?.[list.tab()]?.terminal;
+    if (terminal) run("pane.focus", { terminal });
+    else if (dp?.terminal) run("pane.focus", { terminal: dp.terminal });
+    else if (dp) run("pane.focus", { pane: dp.pane });
     run("pane.go", { direction: "right" });
     cx.spawn(async (cx) => {
       // A pane between (no diff pane): further right, a few times.

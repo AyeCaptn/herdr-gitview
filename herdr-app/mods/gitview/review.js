@@ -39,6 +39,22 @@ export class Reviews {
     this.owned = new Set();
   }
 
+  async ready(tab) {
+    const s = shared(REGISTRY)?.[tab];
+    if (!s?.terminal) return false;
+    const result = await exec("nvim", ["--server", s.sock, "--remote-expr",
+      "luaeval('GitviewReview ~= nil and GitviewReview.ready() and 1 or 0')"]);
+    return result.code === 0 && result.stdout.trim() === "1";
+  }
+
+  async waitReady(tab, cx) {
+    for (let i = 0; i < 40; i++) {
+      if (await this.ready(tab)) return;
+      await cx.sleep(250);
+    }
+    throw new Error("The new Neovim review did not become ready; the original review was kept");
+  }
+
   record(s) {
     const { id, tab, file, sock, terminal, at, ack } = s;
     setShared(REGISTRY, { ...(shared(REGISTRY) ?? {}), [tab]: { id, tab, file, sock, terminal, at, ack } });
@@ -139,6 +155,9 @@ export class Reviews {
     s.version = snapshot.version;
     s.snapshot = snapshot;
     if (!s.terminal) {
+      const measured = await exec("node", [`${appHome()}/mods/gitview/pane-state.mjs`, tab, placeholder.pane]);
+      if (measured.code !== 0) throw new Error(measured.stderr || "Cannot read the review pane's size");
+      const sizes = JSON.parse(measured.stdout);
       const script = `${appHome()}/mods/gitview/review.lua`;
       const argv = ["nvim", "-u", "NONE", "-i", "NONE", "-n", "--noplugin", "--listen", s.sock,
         "--cmd", `lua GitviewReview = dofile(${luaString(script)})`,
@@ -147,7 +166,16 @@ export class Reviews {
       if (!made?.terminal) throw new Error(made?.error ?? "Neovim diff pane did not open");
       s.terminal = made.terminal;
       this.record(s);
-      run("pane.close", { pane: placeholder.pane });
+      const closed = await appCli(["do", "pane.close", JSON.stringify({ pane: placeholder.pane })]);
+      if (closed?.error || !closed) throw new Error(closed?.error ?? "Cannot replace the temporary diff pane");
+      // Splitting halves the slot's weight; closing its old half redistributes
+      // that weight to the other panes. Restore the complete sibling allocation.
+      for (const size of sizes) {
+        const resized = await appCli(["do", "layout.resize", JSON.stringify({ ...size,
+          id: size.id === placeholder.pane ? made.pane : size.id,
+        })]);
+        if (!resized || resized.error) throw new Error(resized?.error ?? "Cannot restore the review width");
+      }
       if (!s.focus && focused()?.tab === tab) this.owner.focusList(cx);
     } else {
       const r = await exec("nvim", ["--server", s.sock, "--remote-expr",

@@ -100,6 +100,12 @@ window to "add the mod at github.com/ChmaraX/herdr-gitview".
 
 The footer shows the keys that work right now; `?` lists them all.
 
+To move a side review into its own tab, click **T · open tab** in the file
+list's footer, or press `Shift-T` with the list focused. The selected file,
+scope and saved comments follow; the original review closes only after the new
+Neovim view is ready. Finish any comment being edited first. If this space
+already has a gitview tab, close it before moving another side review.
+
 ## Keys
 
 | Key | Where | What |
@@ -116,6 +122,7 @@ The footer shows the keys that work right now; `?` lists them all.
 | `J` / `K` | diff | Next / previous file |
 | `v`, `a` | diff | Select lines, write a note |
 | `p` | list, diff | Send the notes to an agent |
+| `T` | side-panel list | Move the review into its own tab |
 | `m` | diff | Diff or Preview |
 | `?` | list, diff | All keys |
 

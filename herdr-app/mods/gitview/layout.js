@@ -4,6 +4,7 @@
 
 import { focused, layout, panes, shared, spaces, terminals } from "herdr";
 import { isOwnTab, machineOf } from "./shared.js";
+import { repoContext } from "./repo-context.js";
 
 // The tab's diff pane, if it has one.
 export function diffPane(tab) {
@@ -63,24 +64,15 @@ export function onScreen(tab) {
   return Boolean(tab) && focused()?.tab === tab;
 }
 
-// The shown space's folder, as the stock Changes panel finds it: the focused
-// pane's live folder, else the space's. `on`: the machine it's on (null:
-// this one). A mod pane (gitview's own diff pane) has no folder, herdr-nvim's
-// nvim runs in its daemon's folder (not the file's repo), and a dialog over
-// the tab focuses nothing: `keep` (the place before, in the same tab) stays.
+// The active tab's working terminal, retained while a review or overlay has
+// focus. Its selected OpenCode session / foreground cwd beats the shell's
+// inherited cwd; never take another tab's folder from the space fallback.
 export function location(keep) {
   const f = focused();
   const space = spaces().find((s) => s.active);
-  const pane = f?.pane ? panes().find((p) => p.pane === f.pane) : null;
-  const on = f?.pane === null ? machineOf(f?.terminal) : space?.machine ?? null;
-  // A mod pane, herdr-nvim's nvim, or nothing in the tab (a dialog over
-  // it): the place stays.
-  const nvim = pane?.terminal && (herdrNvimPanes(f.tab).some((p) => p.pane === pane.pane) || diffPane(f.tab)?.terminal === pane.terminal);
-  if (keep && keep.tab === f?.tab && ((pane && !pane.terminal) || nvim || (!f?.pane && !f?.terminal))) return keep;
-  return {
-    cwd: pane?.cwd || f?.cwd || space?.folder || null,
-    on,
-    space: space?.id ?? null,
-    tab: f?.tab ?? null,
-  };
+  const ctx = repoContext({ focus: f, space, panes: panes(), terminals: terminals(), keep,
+    source: shared("gitview.source"),
+    reviews: Object.values(shared("gitview.reviewSessions") ?? {}).map(s => s.terminal),
+  });
+  return { ...ctx, on: machineOf(ctx.terminal) ?? space?.machine ?? null };
 }

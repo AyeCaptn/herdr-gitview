@@ -11,6 +11,7 @@ import { takeKeyboard } from "./modkit.js";
 
 // The keys every view has.
 const EVERYWHERE = [
+  { caps: ["T"], label: "open tab", rank: 0.5, when: v => Boolean(v.cycle), on: { T: (v, cx) => v.openInTab(cx) } },
   { caps: ["p"], label: "send notes", rank: 9, on: { p: (v, cx) => v.send(cx) } },
   { caps: ["r"], label: "refresh", on: { r: (v, cx) => v.refresh(cx) } },
   { caps: ["?"], label: "all keys", on: { "?": (v) => showKeys(v) } },

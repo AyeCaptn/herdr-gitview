@@ -1,5 +1,8 @@
 -- unified.nvim renders read-only after snapshots; Herdr owns comment UI.
 local M, state = {}, { seq = 0, pending = {}, outgoing = {}, buffers = {}, links = {} }
+function M.ready()
+  return state.snapshot ~= nil and not state.input_active and next(state.pending) == nil and #state.outgoing == 0
+end
 vim.g.mapleader = " "
 vim.opt.swapfile = false
 vim.opt.backup = false
